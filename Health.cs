@@ -3,39 +3,38 @@ using UnityEngine.UI;
 
 public class HealthManager : MonoBehaviour
 {
-    public float maxHealth = 100f; // Maximum health of the character
+    public float maxHealth = 100f;
     private float currentHealth;
 
-    public Slider healthSlider; // Reference to the UI Slider (health bar)
+    public Slider healthSlider;
 
-    public float respawnTime = 3f; // Time before player respawns
-    public Transform respawnPoint; // The point where the player will respawn
+    public float respawnTime = 3f;
+    public Transform respawnPoint;
 
-    private HomingMissile[] missiles; // Array to store all missiles targeting the player
+    private HomingMissile[] missiles;
 
-    // Start is called before the first frame update
     void Start()
     {
-        currentHealth = maxHealth;
-        missiles = FindObjectsOfType<HomingMissile>(); // Get all homing missiles in the scene
+        currentHealth = maxHealth; // Set initial health
+        missiles = FindObjectsOfType<HomingMissile>(); // Find all homing missiles
         if (healthSlider != null)
         {
-            healthSlider.maxValue = maxHealth;
-            healthSlider.value = currentHealth;
+            healthSlider.maxValue = maxHealth; // Set slider max value
+            healthSlider.value = currentHealth; // Set slider to current health
         }
     }
 
     public void TakeDamage(float damage)
     {
-        currentHealth -= damage;
-        currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
+        currentHealth -= damage; // Reduce health by damage
+        currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth); // Ensure health is within bounds
 
         if (healthSlider != null)
         {
-            healthSlider.value = currentHealth;
+            healthSlider.value = currentHealth; // Update slider
         }
 
-        if (IsDead())
+        if (IsDead()) // Check if player is dead
         {
             Die();
         }
@@ -43,34 +42,33 @@ public class HealthManager : MonoBehaviour
 
     public bool IsDead()
     {
-        return currentHealth <= 0;
+        return currentHealth <= 0; // Return true if health is zero or less
     }
 
     private void Die()
     {
-        gameObject.SetActive(false);
-        Invoke("Respawn", respawnTime);
+        gameObject.SetActive(false); // Disable the player object
+        Invoke("Respawn", respawnTime); // Start respawn after delay
     }
 
     private void Respawn()
     {
-        currentHealth = maxHealth;
+        currentHealth = maxHealth; // Reset health to max
         if (healthSlider != null)
         {
-            healthSlider.value = currentHealth;
+            healthSlider.value = currentHealth; // Reset slider to max health
         }
 
         if (respawnPoint != null)
         {
-            transform.position = respawnPoint.position;
+            transform.position = respawnPoint.position; // Move player to respawn point
         }
 
-        gameObject.SetActive(true);
+        gameObject.SetActive(true); // Enable player object
 
-        // After respawn, update all missiles to target the new player
-        foreach (var missile in missiles)
+        foreach (var missile in missiles) // Update missiles to target player again
         {
-            missile.SetTarget(transform); // Set the missile's target to the new player
+            missile.SetTarget(transform);
         }
     }
 }
