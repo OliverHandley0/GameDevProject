@@ -1,147 +1,266 @@
-using UnityEditor.VersionControl;
 using UnityEngine;
 
+[RequireComponent(typeof(AudioSource), typeof(CharacterController))]
 public class ThirdPersonController : MonoBehaviour
 {
-    [Tooltip("Speed ​​at which the character moves. It is not affected by gravity or jumping.")]
-    public float velocity = 5f; // Basic movement speed
-    [Tooltip("This value is added to the speed value while the character is sprinting.")]
-    public float sprintAdittion = 3.5f; // Speed boost when sprinting
-    [Tooltip("The higher the value, the higher the character will jump.")]
-    public float jumpForce = 18f; // Force of the jump
-    [Tooltip("Stay in the air. The higher the value, the longer the character floats before falling.")]
-    public float jumpTime = 0.85f; // Time spent in air while jumping
-    [Space]
-    [Tooltip("Force that pulls the player down. Changing this value causes all movement, jumping and falling to be changed as well.")]
-    public float gravity = 9.8f; // Gravity pulling the player down
+    [Header("Move Settings")]
+    public float velocity = 5f;            // Base movement speed
+    public float sprintAddition = 3.5f;    // Extra speed when sprinting
 
-    float jumpElapsedTime = 0; // Timer for jump duration
+    [Header("Jump Settings")]
+    public float jumpForce = 18f;          // Initial upward force for jumps
+    public float jumpTime = 0.85f;         // Duration over which jump force applies
+    public float gravity = 9.8f;           // Downward acceleration
 
-    bool isJumping = false; // Check if character is jumping
-    bool isSprinting = false; // Check if character is sprinting
-    bool isCrouching = false; // Check if character is crouching
+    [Header("Fall Adjustment")]
+    [Range(0f, 1f)]
+    public float fallMultiplier = 0.6f;    // Gravity scale when falling
 
-    float inputHorizontal; // Horizontal movement input (A/D or Left Stick)
-    float inputVertical; // Vertical movement input (W/S or Left Stick)
-    bool inputJump; // Jump input (Space or Button)
-    bool inputCrouch; // Crouch input (Left Control or Button)
-    bool inputSprint; // Sprint input (Shift or Button)
+    [Header("Dash Settings")]
+    public bool dashEnabled = true;        // Enable or disable dash ability
+    public float dashSpeed = 15f;          // Speed during dash
+    public float dashDuration = 0.2f;      // How long dash lasts
+    public float dashCooldown = 1f;        // Time before dash can be used again
 
-    Animator animator; // Animator component to control animations
-    CharacterController cc; // CharacterController component for movement
+    [Header("Dash VFX")]
+    public ParticleSystem dashParticle;    // Particle effect for dashing
 
+    [Header("Audio Clips")]
+    public AudioClip walkClip;             // Footstep sound when walking
+    public AudioClip runClip;              // Footstep sound when sprinting
+    public AudioClip jumpClip;             // Sound played on jump
+    public float footstepInterval = 0.5f;  // Time between footstep sounds
+
+    [Header("Jump VFX")]
+    public ParticleSystem jumpParticle;    // Particle effect on jump
+
+    [Header("UI / Double Jump")]
+    public bool isUIActive = false;        // If true, input and camera are locked for UI
+
+    // Internal references and state
+    private CharacterController cc;
+    private Animator animator;
+    private AudioSource audioSource;
+
+    private float inputHorizontal;
+    private float inputVertical;
+    private bool inputJump;
+    private bool inputSprint;
+    private bool inputCrouch;
+
+    private bool isCrouching = false;
+    private bool isSprinting = false;
+    private bool isJumping = false;
+    private bool canDoubleJump = false;
+
+    private float directionY = 0f;         // Vertical movement component
+    private float jumpElapsedTime = 0f;    // Timer for jump arc
+
+    private float footstepTimer = 0f;
+    private enum WalkState { Idle, Walking, Sprinting }
+    private WalkState currentState = WalkState.Idle;
+
+    // Dash timers and direction
+    private float dashTimeLeft = 0f;
+    private float dashCooldownTimer = 0f;
+    private Vector3 dashDirection;
+
+    // Cache components and validate setup
     void Start()
     {
-        cc = GetComponent<CharacterController>(); // Get the CharacterController
-        animator = GetComponent<Animator>(); // Get the Animator
-
-        if (animator == null)
-            Debug.LogWarning("Hey buddy, you don't have the Animator component in your player. Without it, the animations won't work.");
+        cc = GetComponent<CharacterController>();
+        animator = GetComponent<Animator>();
+        audioSource = GetComponent<AudioSource>();
     }
 
+    // Handle input, UI lock, dash initiation, jump triggering, and animations
     void Update()
     {
-        inputHorizontal = Input.GetAxis("Horizontal"); // Get horizontal input
-        inputVertical = Input.GetAxis("Vertical"); // Get vertical input
-        inputJump = Input.GetAxis("Jump") == 1f; // Check if jump button is pressed
-        inputSprint = Input.GetAxis("Fire3") == 1f; // Check if sprint button is pressed
-        inputCrouch = Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.JoystickButton1); // Check if crouch button is pressed
+        // Lock or unlock cursor based on UI state
+        if (isUIActive)
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+            return;
+        }
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
 
+        // Read player inputs
+        inputHorizontal = Input.GetAxis("Horizontal");
+        inputVertical = Input.GetAxis("Vertical");
+        inputJump = Input.GetButtonDown("Jump");
+        inputSprint = Input.GetAxis("Fire3") == 1f;
+        inputCrouch = Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.JoystickButton1);
+
+        // Toggle crouch state
         if (inputCrouch)
-            isCrouching = !isCrouching; // Toggle crouch
+            isCrouching = !isCrouching;
 
-        if (cc.isGrounded && animator != null)
+        // Update dash cooldown
+        if (dashCooldownTimer > 0f)
+            dashCooldownTimer -= Time.deltaTime;
+
+        // Start dash if eligible
+        if (dashEnabled && dashTimeLeft <= 0f && Input.GetKeyDown(KeyCode.E) && dashCooldownTimer <= 0f)
         {
-            animator.SetBool("crouch", isCrouching); // Update crouch animation
-
-            float minimumSpeed = 0.9f;
-            animator.SetBool("run", cc.velocity.magnitude > minimumSpeed); // Update run animation
-
-            isSprinting = cc.velocity.magnitude > minimumSpeed && inputSprint; // Check if sprinting
-            animator.SetBool("sprint", isSprinting); // Update sprint animation
+            dashTimeLeft = dashDuration;
+            dashDirection = transform.forward;
+            animator?.SetTrigger("dash");
+            dashParticle?.Play();
         }
 
-        if (animator != null)
-            animator.SetBool("air", cc.isGrounded == false); // Update air animation
-
-        if (inputJump && cc.isGrounded) // If jump is pressed and player is grounded
+        // Countdown dash duration
+        if (dashTimeLeft > 0f)
         {
-            isJumping = true; // Start jumping
+            dashTimeLeft -= Time.deltaTime;
+            if (dashTimeLeft <= 0f)
+                dashCooldownTimer = dashCooldown;
         }
 
-        HeadHittingDetect(); // Detect if head hits a ceiling
+        // Update animator booleans for grounded states
+        if (cc.isGrounded)
+        {
+            animator?.SetBool("crouch", isCrouching);
+            bool moving = cc.velocity.magnitude > 0.9f;
+            animator?.SetBool("run", moving);
+            isSprinting = moving && inputSprint;
+            animator?.SetBool("sprint", isSprinting);
+        }
+        animator?.SetBool("air", !cc.isGrounded);
+
+        // Play footstep sounds if needed
+        HandleFootsteps();
+
+        // Jump logic: initial jump or double jump
+        if (cc.isGrounded)
+        {
+            if (inputJump)
+                PerformJump();
+        }
+        else if (inputJump && canDoubleJump)
+        {
+            isJumping = true;
+            jumpElapsedTime = 0f;
+            canDoubleJump = false;
+            directionY = jumpForce * Time.deltaTime;
+            animator?.SetTrigger("doubleJump");
+            audioSource?.PlayOneShot(jumpClip);
+            jumpParticle?.Play();
+        }
+
+        // Detect if head hits ceiling to cancel jump
+        HeadHittingDetect();
     }
 
-    private void FixedUpdate()
+    // Apply physics-based movement here
+    void FixedUpdate()
     {
-        float velocityAdittion = 0;
-        if (isSprinting)
-            velocityAdittion = sprintAdittion; // Add sprint speed
-        if (isCrouching)
-            velocityAdittion = -(velocity * 0.50f); // Reduce speed while crouching
+        if (isUIActive) return;
 
-        float directionX = inputHorizontal * (velocity + velocityAdittion) * Time.deltaTime; // Horizontal movement
-        float directionZ = inputVertical * (velocity + velocityAdittion) * Time.deltaTime; // Vertical movement
-        float directionY = 0; // Vertical movement (jumping/falling)
+        // If currently dashing, override normal movement
+        if (dashEnabled && dashTimeLeft > 0f)
+        {
+            cc.Move(dashDirection * dashSpeed * Time.deltaTime);
+            return;
+        }
 
-        if (isJumping) // If the player is jumping
+        // Calculate horizontal movement with sprint or crouch modifiers
+        float add = isSprinting ? sprintAddition : 0f;
+        if (isCrouching) add = -velocity * 0.5f;
+
+        float dx = inputHorizontal * (velocity + add) * Time.deltaTime;
+        float dz = inputVertical * (velocity + add) * Time.deltaTime;
+
+        // Reset vertical direction when grounded
+        if (cc.isGrounded && directionY < 0f)
+            directionY = -1f;
+
+        // Compute jump arc over jumpTime
+        if (isJumping)
         {
             if (isSprinting)
-                directionY += jumpForce * 0.2f; // Add extra force when sprinting
-
-            directionY = Mathf.SmoothStep(jumpForce, jumpForce * 0.30f, jumpElapsedTime / jumpTime) * Time.deltaTime; // Smooth jump
-
-            jumpElapsedTime += Time.deltaTime; // Increase jump time
-            if (jumpElapsedTime >= jumpTime) // If jump time is over
+                directionY += jumpForce * 0.2f;
+            directionY = Mathf.SmoothStep(jumpForce, jumpForce * 0.30f, jumpElapsedTime / jumpTime) * Time.deltaTime;
+            jumpElapsedTime += Time.deltaTime;
+            if (jumpElapsedTime >= jumpTime)
             {
-                isJumping = false; // Stop jumping
-                jumpElapsedTime = 0; // Reset jump time
+                isJumping = false;
+                jumpElapsedTime = 0f;
             }
         }
 
-        if (isCrouching) // If crouching, reduce vertical speed
-        {
+        // Reduce upward momentum when crouching
+        if (isCrouching)
             directionY *= 0.75f;
-        }
 
-        directionY = directionY - gravity * Time.deltaTime; // Apply gravity
+        // Apply gravity with fall multiplier
+        if (directionY < 0f)
+            directionY -= gravity * fallMultiplier * Time.deltaTime;
+        else
+            directionY -= gravity * Time.deltaTime;
 
-        Vector3 forward = Camera.main.transform.forward; // Get forward direction from the camera
-        Vector3 right = Camera.main.transform.right; // Get right direction from the camera
+        // Build move vector relative to camera orientation
+        Vector3 forward = Camera.main.transform.forward; forward.y = 0f; forward.Normalize();
+        Vector3 right   = Camera.main.transform.right;   right.y = 0f; right.Normalize();
+        Vector3 move    = right * dx + forward * dz + Vector3.up * directionY;
 
-        forward.y = 0; // Ignore vertical component
-        right.y = 0; // Ignore vertical component
-
-        forward.Normalize(); // Normalize the forward direction
-        right.Normalize(); // Normalize the right direction
-
-        forward = forward * directionZ; // Apply movement in the forward direction
-        right = right * directionX; // Apply movement in the right direction
-
-        if (directionX != 0 || directionZ != 0) // If there is any movement
+        // Rotate character toward movement direction if moving
+        if (dx != 0f || dz != 0f)
         {
-            float angle = Mathf.Atan2(forward.x + right.x, forward.z + right.z) * Mathf.Rad2Deg; // Calculate angle to rotate
-            Quaternion rotation = Quaternion.Euler(0, angle, 0); // Create rotation
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, 0.15f); // Smoothly rotate the character
+            float angle = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, angle, 0), 0.15f);
         }
 
-        Vector3 verticalDirection = Vector3.up * directionY; // Vertical direction (jumping/falling)
-        Vector3 horizontalDirection = forward + right; // Horizontal movement
-
-        Vector3 moviment = verticalDirection + horizontalDirection; // Combine vertical and horizontal movement
-        cc.Move(moviment); // Move the character
+        cc.Move(move);
     }
 
-    void HeadHittingDetect()
+    // Manages footstep sound playback based on movement state
+    private void HandleFootsteps()
     {
-        float headHitDistance = 1.1f; // Distance to check for head hitting
-        Vector3 ccCenter = transform.TransformPoint(cc.center); // Get the center of the character
-        float hitCalc = cc.height / 2f * headHitDistance; // Calculate the head hit range
+        bool moving = cc.isGrounded && cc.velocity.magnitude > 0.9f && !isJumping;
+        WalkState newState = moving
+            ? (isSprinting ? WalkState.Sprinting : WalkState.Walking)
+            : WalkState.Idle;
 
-        if (Physics.Raycast(ccCenter, Vector3.up, hitCalc)) // Check if there is an obstacle above the player
+        if (newState != currentState)
         {
-            jumpElapsedTime = 0; // Reset jump timer
-            isJumping = false; // Stop jumping if head hits something
+            footstepTimer = footstepInterval;
+            currentState = newState;
+        }
+
+        if (currentState != WalkState.Idle)
+        {
+            footstepTimer -= Time.deltaTime;
+            if (footstepTimer <= 0f)
+            {
+                footstepTimer = footstepInterval;
+                audioSource?.PlayOneShot(currentState == WalkState.Sprinting ? runClip : walkClip);
+            }
+        }
+    }
+
+    // Initiates the first jump
+    private void PerformJump()
+    {
+        isJumping = true;
+        jumpElapsedTime = 0f;
+        canDoubleJump = true;
+        directionY = jumpForce * Time.deltaTime;
+        animator?.SetTrigger("jump");
+        audioSource?.PlayOneShot(jumpClip);
+        jumpParticle?.Play();
+    }
+
+    // Cancel jump if head collides with ceiling
+    private void HeadHittingDetect()
+    {
+        Vector3 ccCenter = transform.TransformPoint(cc.center);
+        float rayDist = (cc.height / 2f) * 1.1f;
+        if (Physics.Raycast(ccCenter, Vector3.up, rayDist))
+        {
+            isJumping = false;
+            jumpElapsedTime = 0f;
         }
     }
 }
