@@ -4,79 +4,85 @@ using UnityEngine;
 public class ThirdPersonController : MonoBehaviour
 {
     [Header("Move Settings")]
-    public float velocity = 5f;            // Base movement speed
-    public float sprintAddition = 3.5f;    // Extra speed when sprinting
+    public float velocity = 5f;                  // Base movement speed
+    public float sprintAddition = 3.5f;          // Extra speed added when sprinting
 
     [Header("Jump Settings")]
-    public float jumpForce = 18f;          // Initial upward force for jumps
-    public float jumpTime = 0.85f;         // Duration over which jump force applies
-    public float gravity = 9.8f;           // Downward acceleration
+    public float jumpForce = 18f;                // Initial force applied when jumping
+    public float jumpTime = 0.85f;               // Duration of upward force during jump
+    public float gravity = 9.8f;                 // Gravity strength applied when falling
 
     [Header("Fall Adjustment")]
     [Range(0f, 1f)]
-    public float fallMultiplier = 0.6f;    // Gravity scale when falling
+    public float fallMultiplier = 0.6f;          // Controls faster fall speed when falling
 
     [Header("Dash Settings")]
-    public bool dashEnabled = true;        // Enable or disable dash ability
-    public float dashSpeed = 15f;          // Speed during dash
-    public float dashDuration = 0.2f;      // How long dash lasts
-    public float dashCooldown = 1f;        // Time before dash can be used again
+    public bool dashEnabled = true;              // Enables or disables dash mechanic
+    public float dashSpeed = 15f;                // Speed applied during dash
+    public float dashDuration = 0.2f;            // How long dash lasts in seconds
+    public float dashCooldown = 1f;              // Cooldown before next dash is allowed
 
     [Header("Dash VFX")]
-    public ParticleSystem dashParticle;    // Particle effect for dashing
+    public ParticleSystem dashParticle;          // Particle system played during dash
 
     [Header("Audio Clips")]
-    public AudioClip walkClip;             // Footstep sound when walking
-    public AudioClip runClip;              // Footstep sound when sprinting
-    public AudioClip jumpClip;             // Sound played on jump
-    public float footstepInterval = 0.5f;  // Time between footstep sounds
+    public AudioClip walkClip;                   // Footstep sound for walking
+    public AudioClip runClip;                    // Footstep sound for running
+    public AudioClip jumpClip;                   // Sound played when jumping
+    public float footstepInterval = 0.5f;        // Time between footstep sounds
 
     [Header("Jump VFX")]
-    public ParticleSystem jumpParticle;    // Particle effect on jump
+    public ParticleSystem jumpParticle;          // Particle effect played when jumping
 
     [Header("UI / Double Jump")]
-    public bool isUIActive = false;        // If true, input and camera are locked for UI
+    public bool isUIActive = false;              // Determines if UI is active, disables control if true
 
-    // Internal references and state
-    private CharacterController cc;
-    private Animator animator;
-    private AudioSource audioSource;
+    // Internal state
+    private CharacterController cc;              // Reference to the character controller
+    private Animator animator;                   // Reference to the animator
+    private AudioSource audioSource;             // Reference to the audio source
 
-    private float inputHorizontal;
-    private float inputVertical;
-    private bool inputJump;
-    private bool inputSprint;
-    private bool inputCrouch;
+    private float inputHorizontal;               // Raw horizontal input axis
+    private float inputVertical;                 // Raw vertical input axis
+    private bool inputJump;                      // True if jump button was pressed this frame
+    private bool inputSprint;                    // True if sprint button is held
+    private bool inputCrouch;                    // True if crouch button was pressed this frame
 
-    private bool isCrouching = false;
-    private bool isSprinting = false;
-    private bool isJumping = false;
-    private bool canDoubleJump = false;
+    private bool isCrouching = false;            // True if currently crouching
+    private bool isSprinting = false;            // True if currently sprinting
+    private bool isJumping = false;              // True if currently jumping
+    private bool canDoubleJump = false;          // True if allowed to perform a double jump
 
-    private float directionY = 0f;         // Vertical movement component
-    private float jumpElapsedTime = 0f;    // Timer for jump arc
+    private float directionY = 0f;               // Vertical movement delta (used for jumping/falling)
+    private float jumpElapsedTime = 0f;          // Tracks time spent during current jump
 
-    private float footstepTimer = 0f;
-    private enum WalkState { Idle, Walking, Sprinting }
-    private WalkState currentState = WalkState.Idle;
+    private float footstepTimer = 0f;            // Timer between footstep sounds
+    private enum WalkState { Idle, Walking, Sprinting } // State enum for footsteps
+    private WalkState currentState = WalkState.Idle;   // Current movement state for footsteps
 
-    // Dash timers and direction
-    private float dashTimeLeft = 0f;
-    private float dashCooldownTimer = 0f;
-    private Vector3 dashDirection;
+    // Dash state
+    private float dashTimeLeft = 0f;             // Remaining time for active dash
+    private float dashCooldownTimer = 0f;        // Time left before another dash is allowed
+    private Vector3 dashDirection;               // Direction in which the dash is applied
 
-    // Cache components and validate setup
+
     void Start()
     {
+        // Cache required components
         cc = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
         audioSource = GetComponent<AudioSource>();
+
+        // Warn if key components or particles are missing
+        if (animator == null) Debug.LogWarning("Animator missing.");
+        if (audioSource == null) Debug.LogWarning("AudioSource missing.");
+        if (jumpParticle == null) Debug.LogWarning("Jump particle not assigned.");
+        if (dashParticle == null) Debug.LogWarning("Dash particle not assigned.");
     }
 
-    // Handle input, UI lock, dash initiation, jump triggering, and animations
     void Update()
     {
-        // Lock or unlock cursor based on UI state
+        // Lock or unlock cursor if UI is active
         if (isUIActive)
         {
             Cursor.visible = true;
@@ -86,7 +92,7 @@ public class ThirdPersonController : MonoBehaviour
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
-        // Read player inputs
+        // Capture player input
         inputHorizontal = Input.GetAxis("Horizontal");
         inputVertical = Input.GetAxis("Vertical");
         inputJump = Input.GetButtonDown("Jump");
@@ -101,16 +107,16 @@ public class ThirdPersonController : MonoBehaviour
         if (dashCooldownTimer > 0f)
             dashCooldownTimer -= Time.deltaTime;
 
-        // Start dash if eligible
+        // Handle dash start
         if (dashEnabled && dashTimeLeft <= 0f && Input.GetKeyDown(KeyCode.E) && dashCooldownTimer <= 0f)
         {
             dashTimeLeft = dashDuration;
             dashDirection = transform.forward;
             animator?.SetTrigger("dash");
-            dashParticle?.Play();
+            PlayDashVFX();
         }
 
-        // Countdown dash duration
+        // Count down dash duration
         if (dashTimeLeft > 0f)
         {
             dashTimeLeft -= Time.deltaTime;
@@ -118,21 +124,21 @@ public class ThirdPersonController : MonoBehaviour
                 dashCooldownTimer = dashCooldown;
         }
 
-        // Update animator booleans for grounded states
-        if (cc.isGrounded)
+        // Handle grounded movement animation logic
+        if (cc.isGrounded && animator != null)
         {
-            animator?.SetBool("crouch", isCrouching);
+            animator.SetBool("crouch", isCrouching);
             bool moving = cc.velocity.magnitude > 0.9f;
-            animator?.SetBool("run", moving);
+            animator.SetBool("run", moving);
             isSprinting = moving && inputSprint;
-            animator?.SetBool("sprint", isSprinting);
+            animator.SetBool("sprint", isSprinting);
         }
         animator?.SetBool("air", !cc.isGrounded);
 
-        // Play footstep sounds if needed
+        // Footstep sound logic
         HandleFootsteps();
 
-        // Jump logic: initial jump or double jump
+        // Handle jump or double jump
         if (cc.isGrounded)
         {
             if (inputJump)
@@ -140,48 +146,54 @@ public class ThirdPersonController : MonoBehaviour
         }
         else if (inputJump && canDoubleJump)
         {
+            // Perform double jump
             isJumping = true;
             jumpElapsedTime = 0f;
             canDoubleJump = false;
             directionY = jumpForce * Time.deltaTime;
             animator?.SetTrigger("doubleJump");
-            audioSource?.PlayOneShot(jumpClip);
-            jumpParticle?.Play();
+            PlayClipOneShot(jumpClip);
+            PlayJumpVFX();
         }
 
-        // Detect if head hits ceiling to cancel jump
+        // Detect head collision to cancel jump
         HeadHittingDetect();
     }
 
-    // Apply physics-based movement here
     void FixedUpdate()
     {
         if (isUIActive) return;
 
-        // If currently dashing, override normal movement
+        // If dashing, override all other movement
         if (dashEnabled && dashTimeLeft > 0f)
         {
             cc.Move(dashDirection * dashSpeed * Time.deltaTime);
             return;
         }
 
-        // Calculate horizontal movement with sprint or crouch modifiers
+        // Apply movement speed modifiers
         float add = isSprinting ? sprintAddition : 0f;
         if (isCrouching) add = -velocity * 0.5f;
 
-        float dx = inputHorizontal * (velocity + add) * Time.deltaTime;
-        float dz = inputVertical * (velocity + add) * Time.deltaTime;
+        float dirX = inputHorizontal * (velocity + add) * Time.deltaTime;
+        float dirZ = inputVertical * (velocity + add) * Time.deltaTime;
 
-        // Reset vertical direction when grounded
+        // Reset falling when grounded
         if (cc.isGrounded && directionY < 0f)
             directionY = -1f;
 
-        // Compute jump arc over jumpTime
+        // Apply jump arc over time
         if (isJumping)
         {
             if (isSprinting)
                 directionY += jumpForce * 0.2f;
-            directionY = Mathf.SmoothStep(jumpForce, jumpForce * 0.30f, jumpElapsedTime / jumpTime) * Time.deltaTime;
+
+            directionY = Mathf.SmoothStep(
+                jumpForce,
+                jumpForce * 0.30f,
+                jumpElapsedTime / jumpTime
+            ) * Time.deltaTime;
+
             jumpElapsedTime += Time.deltaTime;
             if (jumpElapsedTime >= jumpTime)
             {
@@ -190,7 +202,7 @@ public class ThirdPersonController : MonoBehaviour
             }
         }
 
-        // Reduce upward momentum when crouching
+        // Reduce vertical speed when crouching
         if (isCrouching)
             directionY *= 0.75f;
 
@@ -200,67 +212,99 @@ public class ThirdPersonController : MonoBehaviour
         else
             directionY -= gravity * Time.deltaTime;
 
-        // Build move vector relative to camera orientation
-        Vector3 forward = Camera.main.transform.forward; forward.y = 0f; forward.Normalize();
-        Vector3 right   = Camera.main.transform.right;   right.y = 0f; right.Normalize();
-        Vector3 move    = right * dx + forward * dz + Vector3.up * directionY;
+        // Calculate movement direction relative to camera
+        Vector3 forward = Camera.main.transform.forward;
+        Vector3 right = Camera.main.transform.right;
+        forward.y = right.y = 0f;
+        forward.Normalize();
+        right.Normalize();
 
-        // Rotate character toward movement direction if moving
-        if (dx != 0f || dz != 0f)
+        Vector3 hMove = right * dirX;
+        Vector3 vMove = forward * dirZ;
+
+        // Rotate character toward movement direction
+        if (dirX != 0f || dirZ != 0f)
         {
-            float angle = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
+            float angle = Mathf.Atan2(hMove.x + vMove.x, hMove.z + vMove.z) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, angle, 0), 0.15f);
         }
 
-        cc.Move(move);
+        // Apply final motion vector
+        Vector3 motion = (hMove + vMove) + Vector3.up * directionY;
+        cc.Move(motion);
     }
 
-    // Manages footstep sound playback based on movement state
     private void HandleFootsteps()
     {
-        bool moving = cc.isGrounded && cc.velocity.magnitude > 0.9f && !isJumping;
-        WalkState newState = moving
-            ? (isSprinting ? WalkState.Sprinting : WalkState.Walking)
-            : WalkState.Idle;
+        // Determine if player is moving on the ground
+        bool isMoving = cc.isGrounded && cc.velocity.magnitude > 0.9f && !isJumping;
+        WalkState newState = WalkState.Idle;
+        if (isMoving)
+            newState = isSprinting ? WalkState.Sprinting : WalkState.Walking;
 
+        // Reset timer when state changes
         if (newState != currentState)
         {
             footstepTimer = footstepInterval;
             currentState = newState;
         }
 
+        // Play footstep sound periodically
         if (currentState != WalkState.Idle)
         {
             footstepTimer -= Time.deltaTime;
             if (footstepTimer <= 0f)
             {
                 footstepTimer = footstepInterval;
-                audioSource?.PlayOneShot(currentState == WalkState.Sprinting ? runClip : walkClip);
+                var clip = (currentState == WalkState.Sprinting) ? runClip : walkClip;
+                PlayClipOneShot(clip);
             }
         }
     }
 
-    // Initiates the first jump
     private void PerformJump()
     {
+        // Begin jump sequence
         isJumping = true;
         jumpElapsedTime = 0f;
         canDoubleJump = true;
         directionY = jumpForce * Time.deltaTime;
         animator?.SetTrigger("jump");
-        audioSource?.PlayOneShot(jumpClip);
-        jumpParticle?.Play();
+        PlayClipOneShot(jumpClip);
+        PlayJumpVFX();
     }
 
-    // Cancel jump if head collides with ceiling
+    private void PlayClipOneShot(AudioClip clip)
+    {
+        // Play single audio clip
+        if (clip != null && audioSource != null)
+            audioSource.PlayOneShot(clip);
+    }
+
+    private void PlayJumpVFX()
+    {
+        // Trigger jump particle effect
+        if (jumpParticle != null)
+            jumpParticle.Play();
+    }
+
+    private void PlayDashVFX()
+    {
+        // Trigger dash particle effect
+        if (dashParticle != null)
+            dashParticle.Play();
+    }
+
     private void HeadHittingDetect()
     {
+        // Cancel jump if head hits ceiling
+        float headHitDistance = 1.1f;
         Vector3 ccCenter = transform.TransformPoint(cc.center);
-        float rayDist = (cc.height / 2f) * 1.1f;
+        float rayDist = (cc.height / 2f) * headHitDistance;
         if (Physics.Raycast(ccCenter, Vector3.up, rayDist))
         {
-            isJumping = false;
             jumpElapsedTime = 0f;
+            isJumping = false;
         }
     }
 }
