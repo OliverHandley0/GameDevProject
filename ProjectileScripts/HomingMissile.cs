@@ -2,96 +2,100 @@ using UnityEngine;
 
 public class HomingMissile : MonoBehaviour
 {
-    public float speed = 0.1f; // Speed of the missile
-    public float turnSpeed = 2f; // Turn speed to follow the target
-    public float damage = 10f;
-    private Transform target; // Target the missile will follow
-    private bool isTracking = true; // Whether the missile is still tracking the target
-
-    public float stopTrackingDistance = -4f; // Distance at which tracking stops
-    private Vector3 lastDirection; // The direction the missile was heading when tracking stops
-    private Quaternion fixedRotation; // The rotation to keep after stopping tracking
+    public float speed = 0.1f;                // Movement speed of the missile
+    public float turnSpeed = 2f;              // How fast the missile turns to follow the target
+    public float damage = 10f;                // Damage dealt on impact
+    private Transform target;                 // Current target to home in on
+    private bool isTracking = true;           // Whether the missile is actively tracking
+    public float stopTrackingDistance = -4f;  // Distance threshold at which tracking stops
+    private Vector3 lastDirection;            // Direction missile was moving when tracking stopped
+    private Quaternion fixedRotation;         // Rotation to maintain after tracking stops
 
     void Update()
     {
-        if (target != null) // If a target is assigned
+        // Main movement logic: if we have a target, track or coast; otherwise find player
+        if (target != null)
         {
-            // Calculate the distance between the missile and the target
-            float distanceToTarget = Vector3.Distance(transform.position, target.position);
+            float distanceToTarget = Vector3.Distance(transform.position, target.position); // Distance to target
 
-            if (distanceToTarget <= stopTrackingDistance && isTracking) // Stop tracking if within the threshold distance
+            // Stop tracking when within the stopTrackingDistance
+            if (distanceToTarget <= stopTrackingDistance && isTracking)
             {
-                isTracking = false; // Stop tracking
-                lastDirection = transform.forward; // Store the current direction of the missile
-                fixedRotation = transform.rotation; // Store the current rotation to fix it later
+                isTracking = false;               // Disable tracking
+                lastDirection = transform.forward; // Remember current forward direction
+                fixedRotation = transform.rotation; // Remember current rotation
             }
 
             if (isTracking)
             {
-                Vector3 targetPosition = target.position; // Get the target position
-
-                Collider targetCollider = target.GetComponent<Collider>(); // Check if target has a collider
+                // Calculate the precise point on the target to aim at
+                Vector3 targetPosition = target.position;
+                Collider targetCollider = target.GetComponent<Collider>();
                 if (targetCollider != null)
-                {
-                    targetPosition = targetCollider.bounds.center; // Use the collider center
-                }
+                    targetPosition = targetCollider.bounds.center; // Use collider center if available
                 else
-                {
-                    targetPosition += new Vector3(0, 0.5f, 0); // Slightly adjust position if no collider
-                }
+                    targetPosition += new Vector3(0, 0.5f, 0);       // Slight vertical offset otherwise
 
-                Vector3 direction = targetPosition - transform.position; // Get direction to target
-                float step = speed * Time.deltaTime; // Calculate movement step
-                Vector3 newDirection = Vector3.RotateTowards(transform.forward, direction, turnSpeed * Time.deltaTime, 0f); // Turn towards target
-                transform.rotation = Quaternion.LookRotation(newDirection); // Apply rotation
-                transform.position = Vector3.MoveTowards(transform.position, targetPosition, step); // Move towards target
+                // Turn smoothly toward the target
+                Vector3 direction = targetPosition - transform.position; 
+                Vector3 newDirection = Vector3.RotateTowards(
+                    transform.forward, 
+                    direction, 
+                    turnSpeed * Time.deltaTime, 
+                    0f
+                );
+                transform.rotation = Quaternion.LookRotation(newDirection);
+
+                // Move forward toward the target
+                transform.position = Vector3.MoveTowards(
+                    transform.position, 
+                    targetPosition, 
+                    speed * Time.deltaTime
+                );
             }
             else
             {
-                // Once tracking is stopped, continue moving in the same direction without updating the target
+                // After tracking stops, continue straight in last known direction
                 transform.position += lastDirection * speed * Time.deltaTime;
-
-                // Fix the rotation in the direction it was facing when tracking stopped
-                transform.rotation = fixedRotation;
+                transform.rotation = fixedRotation; // Keep fixed rotation
             }
         }
         else
         {
-            GameObject player = GameObject.FindWithTag("Player"); // Find player if no target
+            // Automatically assign the player as target if none set
+            GameObject player = GameObject.FindWithTag("Player");
             if (player != null)
-            {
-                SetTarget(player.transform); // Set player as target
-            }
+                SetTarget(player.transform);
         }
     }
 
+    // Assigns a new target and resets tracking state
     public void SetTarget(Transform newTarget)
     {
-        if (newTarget == null) // Check if target is valid
+        if (newTarget == null)
         {
-            Debug.LogError("SetTarget was given a null target!"); // Log error if target is null
+            Debug.LogError("SetTarget was given a null target!");
             return;
         }
 
-        target = newTarget; // Set new target
-        isTracking = true; // Resume tracking
-        Debug.Log($"New Target Set: {target.name} at position {target.position}"); // Log new target
+        target = newTarget;    // Update target reference
+        isTracking = true;     // Resume tracking
+        Debug.Log($"New Target Set: {target.name} at position {target.position}");
     }
 
+    // Handle collisions: damage player or self-destruct on blocks
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player")) // Check if missile hits the player
+        if (other.CompareTag("Player"))
         {
-            HealthManager playerHealth = other.GetComponent<HealthManager>(); // Get player health
+            HealthManager playerHealth = other.GetComponent<HealthManager>();
             if (playerHealth != null)
-            {
-                playerHealth.TakeDamage(damage); // Deal damage to player
-                Destroy(gameObject); // Destroy missile
-            }
+                playerHealth.TakeDamage(damage); // Inflict damage on player
+            Destroy(gameObject);                 // Destroy missile on hit
         }
-        else if (other.CompareTag("Block")) // Check if missile hits a block
+        else if (other.CompareTag("Block"))
         {
-            Destroy(gameObject); // Destroy missile
+            Destroy(gameObject);                 // Destroy missile on block collision
         }
     }
 }
