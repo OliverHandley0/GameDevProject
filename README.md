@@ -1,5 +1,5 @@
 # GameDevProject
-Inside is 4 scripts:
+Inside is 6 sections with 16 scripts:
 
 # Audio
 BackgroundMusic.cs Background music
