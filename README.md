@@ -1,5 +1,7 @@
 # GameDevProject
-Inside is 6 sections with 16 scripts:
+7 sections
+16 scripts
+10 models
 
 # Audio
 BackgroundMusic.cs Background music
@@ -41,3 +43,11 @@ HomingMissile.cs This handles the trajectories movements
 # Models
 All models were imported from the Unity Asset Store
 Players character: https://www.mixamo.com/#/?page=1&type=Character
+Nature Pack: https://assetstore.unity.com/packages/p/low-poly-simple-nature-pack-162153
+Animal models with animations: https://assetstore.unity.com/packages/3d/characters/animals/quirky-series-free-animals-pack-178235
+Arrow for projectile: https://assetstore.unity.com/packages/3d/props/weapons/low-poly-rpg-fantasy-weapons-lite-226554
+Dungeon models: https://assetstore.unity.com/packages/3d/environments/dungeons/lite-dungeon-pack-low-poly-3d-art-by-gridness-242692
+Ghosts with animations: https://assetstore.unity.com/packages/3d/characters/little-ghost-lowpoly-free-271926
+Smoke: https://assetstore.unity.com/packages/p/free-stylized-smoke-effects-pack-226406
+Nature Pack 2: https://assetstore.unity.com/packages/3d/props/meadow-forest-props-low-poly-models-pack-316242
+Lava with shader: https://assetstore.unity.com/packages/vfx/shaders/lava-flowing-shader-33635
