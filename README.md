@@ -61,3 +61,5 @@ Smoke: https://assetstore.unity.com/packages/p/free-stylized-smoke-effects-pack-
 Nature Pack 2: https://assetstore.unity.com/packages/3d/props/meadow-forest-props-low-poly-models-pack-316242
 
 Lava with shader: https://assetstore.unity.com/packages/vfx/shaders/lava-flowing-shader-33635
+
+Character movement: https://assetstore.unity.com/packages/essentials/starter-assets-thirdperson-updates-in-new-charactercontroller-pa-196526
