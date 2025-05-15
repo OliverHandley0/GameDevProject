@@ -2,34 +2,36 @@
 Inside is 4 scripts:
 
 # Audio
-BackgroundMusic.cs
+BackgroundMusic.cs Background music
 
 # Player
 PlayerMovement.cs: Controlling animation and movement
 
 Health.cs: Containing the players health and UI
 
-SimpleJoystick.cs
+SimpleJoystick.cs Handles joystick for mobile
 
-StartCamerca.cs
+StartCamerca.cs Triggers cut scene when player loads new level
+
+CameraController.cs Handles the camera movement third person
 
 # Game scripts
-LevelLoader.cs
+LevelLoader.cs Used in menu to transition between the scences
 
-LevelLocking.cs
+LevelLocking.cs Handles datastore for previous levels and unlocks levels as player progresses
 
-MenuLoader.cs
+MenuLoader.cs Loads the menu
 
-TreasureFlash.cs
+TreasureFlash.cs Triggers a flash in the treasure at the end of a level
 
 # EnemyAi
-AiPlayerRorarer.cs
+AiPlayerRotater.cs Rotates stuck archer AI enemy 
 
-AnimalAiBehaviour.cs
+AnimalAiBehaviour.cs Uses meshnav to move Animals and attack when close enough
 
-Sawblade.cs
+Sawblade.cs Moves sawblade and deals damage
 
-TakeDamage.cs
+TakeDamage.cs Deals damage, used for boulders
 
 # Projectiles
 Cannon.cs: This clones the trajetories and injects them into the game
