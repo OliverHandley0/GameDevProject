@@ -4,8 +4,7 @@
 10 models
 
 # Audio
-BackgroundMusic.cs Background music
-https://pixabay.com/music
+In audio folder
 
 # Player
 PlayerMovement.cs: Controlling animation and movement
