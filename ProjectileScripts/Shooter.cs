@@ -30,7 +30,7 @@ public class CannonWithHomingMissile : MonoBehaviour
         currentRotationSpeed = rotationSpeed;  // Start with base rotation speed
     }
 
-    // Called once per frame: find target, rotate toward it, and fire when in range
+    // Called once per frame
     void Update()
     {
         playerTarget = FindNearestPlayer();  // Look up the closest player each frame
@@ -56,7 +56,7 @@ public class CannonWithHomingMissile : MonoBehaviour
                 );
             }
 
-            // Check distance and rate-limit firing
+            // Check distance and rate limit firing
             float distance = Vector3.Distance(transform.position, playerTarget.position);
             if (distance <= fireRange && Time.time >= nextFireTime)
             {
@@ -86,7 +86,7 @@ public class CannonWithHomingMissile : MonoBehaviour
         return nearest;
     }
 
-    // Handles the pre-fire animation, rotation slowdown, missile launch, then resets state
+    // Handles the pre fire animation
     private IEnumerator HandleAnimationAndFire()
     {
         isAnimationOffsetActive = true;            // Offset rotation during animation
@@ -109,7 +109,7 @@ public class CannonWithHomingMissile : MonoBehaviour
         currentRotationSpeed = rotationSpeed;      // Restore original rotation speed
     }
 
-    // Instantiates the missile prefab, sets its homing target, and logs launch
+    // Instantiates the missile prefab
     public void FireMissile()
     {
         if (missilePrefab == null || firePoint == null || playerTarget == null)
