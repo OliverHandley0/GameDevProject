@@ -30,7 +30,7 @@ public class CameraTrigger : MonoBehaviour
         }
     }
 
-    // Coroutine: smoothly move flythroughCam through each point, then restore third-person view
+
     IEnumerator DoFlythrough()
     {
         thirdPersonCam.enabled = false;     // Turn off the gameplay camera
