@@ -13,7 +13,7 @@ public class HomingMissile : MonoBehaviour
 
     void Update()
     {
-        // Main movement logic: if we have a target, track or coast; otherwise find player
+        // Main movement logic
         if (target != null)
         {
             float distanceToTarget = Vector3.Distance(transform.position, target.position); // Distance to target
@@ -83,7 +83,7 @@ public class HomingMissile : MonoBehaviour
         Debug.Log($"New Target Set: {target.name} at position {target.position}");
     }
 
-    // Handle collisions: damage player or self-destruct on blocks
+    // Handle collisions 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
