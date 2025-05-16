@@ -4,7 +4,7 @@
 10 models
 
 # Audio
-In audio folder
+6 audio files all from
 
 # Player
 PlayerMovement.cs: Controlling animation and movement
